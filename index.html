@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Nutrition Tracker</title>
+<style>
+:root{--bg:#f4f5f7;--card:#fff;--text:#1c1c1e;--muted:#6b7280;--accent:#16a34a;--line:#e5e7eb;--danger:#dc2626;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#101113;--card:#1c1d20;--text:#f2f2f3;--muted:#9ca3af;--accent:#22c55e;--line:#2c2e33;--danger:#f87171}}
+:root[data-theme="dark"]{--bg:#101113;--card:#1c1d20;--text:#f2f2f3;--muted:#9ca3af;--accent:#22c55e;--line:#2c2e33;--danger:#f87171}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,system-ui,"Segoe UI",Roboto,sans-serif}
+main{max-width:520px;margin:0 auto;padding:16px 16px 90px}
+h1{font-size:22px;margin:4px 0 14px}
+.card{background:var(--card);border-radius:14px;padding:14px;margin-bottom:12px;border:1px solid var(--line)}
+.big{font-size:40px;font-weight:700}
+.big small{font-size:16px;color:var(--muted);font-weight:500}
+.macros{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px;text-align:center}
+.macros b{display:block;font-size:17px}.macros span{font-size:12px;color:var(--muted)}
+label{display:block;font-size:13px;color:var(--muted);margin:10px 0 4px}
+input,select,button{font:inherit;font-size:17px;width:100%;padding:12px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--text)}
+button.primary{background:var(--accent);color:#fff;border:0;font-weight:600;margin-top:14px}
+.row{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid var(--line)}
+.row:last-child{border-bottom:0}
+.row small{color:var(--muted);display:block}
+.del{width:auto;padding:6px 10px;font-size:14px;color:var(--danger);background:none;border:1px solid var(--line)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.empty{color:var(--muted);text-align:center;padding:14px}
+nav{position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:1px solid var(--line);display:flex;padding-bottom:env(safe-area-inset-bottom,0px)}
+nav button{border:0;background:none;border-radius:0;padding:14px 4px;font-size:14px;color:var(--muted)}
+nav button.on{color:var(--accent);font-weight:700}
+.bar{height:10px;background:var(--line);border-radius:6px;overflow:hidden;margin-top:8px}.bar i{display:block;height:100%;background:var(--accent)}.bar.over i{background:var(--danger)}.over-t{color:var(--danger)!important}
+.preview{margin-top:12px;padding:10px;border-radius:10px;background:var(--bg);font-size:15px;min-height:42px}
+.toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 10px);transform:translateX(-50%);background:var(--accent);color:#fff;padding:8px 16px;border-radius:20px;display:none;z-index:9}
+</style>
+</head>
+<body>
+<div class="toast" id="toast"></div>
+<main id="app"></main>
+<nav id="nav"></nav>
+<script>
+const KEY="nutrition-tracker-v1";
+let data={foods:{},log:[]};
+try{const s=localStorage.getItem(KEY);if(s)data=JSON.parse(s);}catch(e){}
+data.foods=data.foods||{};data.log=data.log||[];data.goals=data.goals||{calories:2000};
+function save(){try{localStorage.setItem(KEY,JSON.stringify(data));}catch(e){toast("Could not save (storage blocked)");}}
+const F=["calories","fat","protein","carbs"];
+const todayStr=()=>{const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");};
+let tab="today",day=todayStr(),draft={};const KJ=4.184;
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const calc=(e)=>{const f=data.foods[e.food];if(!f)return null;const k=e.grams/100;const o={};F.forEach(x=>o[x]=f[x]*k);return o;};
+function toast(m){const t=document.getElementById("toast");t.textContent=m;t.style.display="block";setTimeout(()=>t.style.display="none",1600);}
+let pendingDel=null;
+function setTab(t){tab=t;pendingDel=null;render();}
+
+function render(){
+  document.getElementById("nav").innerHTML=[["today","Today"],["log","Log food"],["foods","Foods"],["goals","Goals"]]
+    .map(([k,l])=>`<button class="${tab===k?"on":""}" onclick="setTab('${k}')">${l}</button>`).join("");
+  const a=document.getElementById("app");
+  if(tab==="today")a.innerHTML=viewToday();
+  else if(tab==="log"){a.innerHTML=viewLog();foodChanged();}
+  else if(tab==="goals")a.innerHTML=viewGoals();
+  else{a.innerHTML=viewFoods();energyHint();}
+}
+
+const MEALS=["Breakfast","Lunch","Dinner","Snack"];let mealSel=null;
+function defaultMeal(){const h=new Date().getHours();return h<11?"Breakfast":h<15?"Lunch":h<17?"Snack":h<21?"Dinner":"Snack";}
+function amountText(e){return e.servings?`${e.servings} ${esc(e.unit)} (${e.grams} g)`:`${e.grams} g`;}
+function viewToday(){
+  const entries=data.log.map((e,i)=>({e,i})).filter(x=>x.e.date===day);
+  const t={calories:0,fat:0,protein:0,carbs:0};
+  entries.forEach(({e})=>{const n=calc(e);if(n)F.forEach(k=>t[k]+=n[k]);});
+  const g=data.goals||{};
+  const rowHtml=({e,i})=>{const n=calc(e);
+    return `<div class="row"><div>${esc(e.food)} · ${amountText(e)}<small>${n?`${n.calories.toFixed(0)} kcal · F ${n.fat.toFixed(1)} · P ${n.protein.toFixed(1)} · C ${n.carbs.toFixed(1)}`:"food deleted"}</small></div><button class="del" onclick="delEntry(${i})">Delete</button></div>`;};
+  const groups=[...MEALS,"Other"].map(m=>({m,items:entries.filter(x=>(MEALS.includes(x.e.meal)?x.e.meal:"Other")===m)})).filter(g=>g.items.length);
+  const rows=groups.length?groups.map(g=>{
+    const m=g.items.reduce((a,x)=>{const n=calc(x.e);if(n)F.forEach(k=>a[k]+=n[k]);return a;},{calories:0,fat:0,protein:0,carbs:0});
+    return `<div class="card"><div style="display:flex;justify-content:space-between;font-weight:700"><span>${g.m}</span><span>${m.calories.toFixed(0)} kcal</span></div>
+    <div style="font-size:13px;color:var(--muted);padding-bottom:4px">Fat ${m.fat.toFixed(1)} g · Protein ${m.protein.toFixed(1)} g · Carbs ${m.carbs.toFixed(1)} g</div>${g.items.map(rowHtml).join("")}</div>`;}).join("")
+    :`<div class="card"><div class="empty">Nothing logged for this day.</div></div>`;
+  let cal;
+  if(g.calories>0){
+    const over=t.calories>g.calories;
+    cal=`<div class="big" style="margin-top:12px">${t.calories.toFixed(0)} <small>/ ${g.calories} kcal</small></div>
+    <div class="bar${over?" over":""}"><i style="width:${Math.min(100,t.calories/g.calories*100)}%"></i></div>
+    <div style="font-size:13px;margin-top:6px" class="${over?"over-t":""}">${over?(t.calories-g.calories).toFixed(0)+" kcal over goal":(g.calories-t.calories).toFixed(0)+" kcal left"}</div>`;
+  }else cal=`<div class="big" style="margin-top:12px">${t.calories.toFixed(0)} <small>kcal</small></div>`;
+  const cell=(l,v,goal)=>`<div><b class="${goal>0&&v>goal?"over-t":""}">${v.toFixed(1)}${goal>0?" / "+goal:""} g</b><span>${l}</span></div>`;
+  return `<h1>Daily totals</h1>
+  <div class="card"><div style="display:flex;gap:8px"><button class="del" style="color:var(--text);font-size:20px" onclick="shiftDay(-1)">‹</button>
+  <input type="date" value="${day}" onchange="day=this.value||todayStr();render()">
+  <button class="del" style="color:var(--text);font-size:20px" onclick="shiftDay(1)">›</button></div>
+  ${day!==todayStr()?`<button class="del" style="width:100%;margin-top:8px;color:var(--accent)" onclick="day=todayStr();render()">Back to today</button>`:""}
+  ${cal}
+  <div class="macros">${cell("Fat",t.fat,g.fat)}${cell("Protein",t.protein,g.protein)}${cell("Carbs",t.carbs,g.carbs)}</div></div>
+  ${rows}`;
+}
+
+function viewLog(){
+  const names=Object.keys(data.foods).sort();
+  if(!names.length)return `<h1>Log food</h1><div class="card empty">Add a food first in the Foods tab.</div>`;
+  return `<h1>Log food</h1><div class="card">
+  <label>Food</label><select id="lf" onchange="foodChanged()">${names.map(n=>`<option>${esc(n)}</option>`).join("")}</select>
+  <div class="grid2"><div><label>Meal</label><select id="lm" onchange="mealSel=this.value">${MEALS.map(m=>`<option${m===(mealSel||defaultMeal())?" selected":""}>${m}</option>`).join("")}</select></div>
+  <div><label>Date</label><input id="ld" type="date" value="${day}"></div></div>
+  <label>Amount</label><div style="display:flex;gap:8px"><input id="lg" type="number" inputmode="decimal" min="0" placeholder="e.g. 150" oninput="updatePreview()">
+  <select id="lu" style="width:150px" onchange="updatePreview()"></select></div>
+  <div class="preview" id="pv"></div>
+  <button class="primary" onclick="addLog()">Add to day</button></div>`;
+}
+function foodChanged(){
+  const f=data.foods[document.getElementById("lf").value],u=document.getElementById("lu");if(!u)return;
+  u.innerHTML=(f&&f.serving?`<option value="s">${esc(f.serving.label)} (${f.serving.grams} g)</option>`:"")+`<option value="g">grams</option>`;
+  const q=document.getElementById("lg");if(f&&f.serving&&!q.value)q.value=1;
+  updatePreview();
+}
+function getAmount(){
+  const f=data.foods[document.getElementById("lf").value],q=parseFloat(document.getElementById("lg").value),u=document.getElementById("lu").value;
+  if(!f||!(q>0))return null;
+  return u==="s"&&f.serving?{grams:Math.round(q*f.serving.grams*10)/10,servings:q,unit:f.serving.label}:{grams:q};
+}
+function updatePreview(){
+  const pv=document.getElementById("pv");if(!pv)return;
+  const f=data.foods[document.getElementById("lf").value],a=getAmount();
+  if(!f||!a){pv.textContent="Enter an amount to preview nutrition.";return;}
+  const k=a.grams/100;pv.innerHTML=`${a.servings?a.grams+" g · ":""}<b>${(f.calories*k).toFixed(0)} kcal</b> · Fat ${(f.fat*k).toFixed(1)} g · Protein ${(f.protein*k).toFixed(1)} g · Carbs ${(f.carbs*k).toFixed(1)} g`;
+}
+function addLog(){
+  const food=document.getElementById("lf").value,a=getAmount();
+  if(!a){toast("Enter an amount");return;}
+  const date=document.getElementById("ld").value||todayStr();
+  data.log.push(Object.assign({date,food,meal:document.getElementById("lm").value},a));save();day=date;toast("Logged to "+document.getElementById("lm").value.toLowerCase());tab="today";render();
+}
+function shiftDay(n){const d=new Date(day+"T12:00:00");d.setDate(d.getDate()+n);
+  day=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");render();}
+function delEntry(i){data.log.splice(i,1);save();render();}
+
+function viewFoods(){
+  const names=Object.keys(data.foods).sort();
+  const list=names.length?names.map(n=>{const f=data.foods[n],q=JSON.stringify(n).replace(/"/g,"&quot;");
+    return `<div class="row"><div>${esc(n)}<small>per 100 g: ${f.kj!=null?f.kj:Math.round(f.calories*KJ)} kJ (${f.calories} kcal) · F ${f.fat} · P ${f.protein} · C ${f.carbs}${f.serving?`<br>1 ${esc(f.serving.label)} = ${f.serving.grams} g`:""}</small></div>
+    <div style="display:flex;gap:6px"><button class="del" style="color:var(--text)" onclick="editFood(${q})">Edit</button><button class="del" onclick="delFood(${q})">${pendingDel===n?"Tap again":"Delete"}</button></div></div>`;}).join("")
+    :`<div class="empty">No foods yet.</div>`;
+  const d=draft;const v=k=>d[k]==null?"":d[k];
+  return `<h1>Foods</h1>
+  <div class="card"><b>${d.editing?"Edit food":"Add new food"}</b> <span style="color:var(--muted);font-size:13px">(values per 100 g)</span>
+  <label>Name</label><input id="fn" type="text" placeholder="e.g. Biscuit" value="${esc(v("name"))}">
+  <div class="grid2"><div style="grid-column:1/-1"><label>Energy</label>
+  <div style="display:flex;gap:8px"><input id="fc" type="number" inputmode="decimal" min="0" value="${v("energy")}" oninput="energyHint()">
+  <select id="fu" style="width:92px" onchange="energyHint()"><option value="kJ"${d.unit!=="kcal"?" selected":""}>kJ</option><option value="kcal"${d.unit==="kcal"?" selected":""}>kcal</option></select></div>
+  <div id="eh" style="font-size:13px;color:var(--muted);margin-top:4px"></div></div>
+  <div><label>Fat (g)</label><input id="ff" type="number" inputmode="decimal" min="0" value="${v("fat")}"></div>
+  <div><label>Protein (g)</label><input id="fp" type="number" inputmode="decimal" min="0" value="${v("protein")}"></div>
+  <div style="grid-column:1/-1"><label>Carbs (g)</label><input id="fb" type="number" inputmode="decimal" min="0" value="${v("carbs")}"></div>
+  <div><label>Serving name (optional)</label><input id="fs" type="text" placeholder="e.g. biscuit" value="${esc(v("sname"))}"></div>
+  <div><label>Grams per serving</label><input id="fg" type="number" inputmode="decimal" min="0" placeholder="e.g. 5" value="${v("sgrams")}"></div></div>
+  <button class="primary" onclick="addFood()">${d.editing?"Update food":"Save food"}</button>
+  ${d.editing?`<button class="del" style="width:100%;margin-top:8px" onclick="draft={};render()">Cancel edit</button>`:""}</div>
+  <div class="card">${list}</div>`;
+}
+function editFood(n){
+  const f=data.foods[n];
+  draft={editing:true,name:n,energy:f.kj!=null?f.kj:f.calories,unit:f.kj!=null?"kJ":"kcal",fat:f.fat,protein:f.protein,carbs:f.carbs,
+         sname:f.serving?f.serving.label:"",sgrams:f.serving?f.serving.grams:""};
+  render();window.scrollTo(0,0);
+}
+function energyHint(){
+  const h=document.getElementById("eh");if(!h)return;
+  const x=parseFloat(document.getElementById("fc").value),u=document.getElementById("fu").value;
+  h.textContent=!(x>=0)?"":u==="kJ"?"= "+(x/KJ).toFixed(1)+" kcal (kcal is used for all calculations)":"= "+Math.round(x*KJ)+" kJ";
+}
+function addFood(){
+  const name=document.getElementById("fn").value.trim();
+  const u=document.getElementById("fu").value;
+  const v=["fc","ff","fp","fb"].map(id=>parseFloat(document.getElementById(id).value));
+  if(!name||v.some(x=>isNaN(x)||x<0)){toast("Fill every field");return;}
+  const sl=document.getElementById("fs").value.trim(),sg=parseFloat(document.getElementById("fg").value);
+  if((sl&&!(sg>0))||(!sl&&!isNaN(sg))){toast("Serving needs a name and grams");return;}
+  const kcal=u==="kJ"?v[0]/KJ:v[0],kj=u==="kJ"?v[0]:Math.round(v[0]*KJ);
+  const food={calories:Math.round(kcal*10)/10,kj:Math.round(kj*10)/10,fat:v[1],protein:v[2],carbs:v[3]};
+  if(sl)food.serving={label:sl,grams:sg};
+  data.foods[name]=food;
+  draft={};save();toast("Saved");render();
+}
+function delFood(n){
+  if(pendingDel===n){delete data.foods[n];pendingDel=null;save();}else pendingDel=n;
+  render();
+}
+function viewGoals(){
+  const g=data.goals||{},v=k=>g[k]>0?g[k]:"";
+  return `<h1>Daily goals</h1><div class="card"><div style="font-size:13px;color:var(--muted)">Shown on the Today tab. Leave a field empty for no goal.</div>
+  <label>Calories (kcal)</label><input id="gc" type="number" inputmode="decimal" min="0" value="${v("calories")}">
+  <div class="grid2"><div><label>Fat (g)</label><input id="gf" type="number" inputmode="decimal" min="0" value="${v("fat")}"></div>
+  <div><label>Protein (g)</label><input id="gp" type="number" inputmode="decimal" min="0" value="${v("protein")}"></div>
+  <div style="grid-column:1/-1"><label>Carbs (g)</label><input id="gb" type="number" inputmode="decimal" min="0" value="${v("carbs")}"></div></div>
+  <button class="primary" onclick="saveGoals()">Save goals</button></div>`;
+}
+function saveGoals(){
+  const r=["gc","gf","gp","gb"].map(id=>{const x=parseFloat(document.getElementById(id).value);return x>0?x:null;});
+  data.goals={calories:r[0],fat:r[1],protein:r[2],carbs:r[3]};save();toast("Goals saved");tab="today";render();
+}
+render();
+</script>
+</body>
+</html>
