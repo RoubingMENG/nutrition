@@ -13,17 +13,17 @@ A simple, private daily nutrition tracker that runs in your browser. It is a sin
 - **Daily goals:** set a calorie goal (and optional fat, protein and carb goals) and see progress such as `500 / 2000 kcal`.
 - **Any date:** log, browse and edit entries for past or future days.
 - **Edit entries:** change the amount, unit, meal or date of anything you logged.
-- **Search:** find foods by name or barcode, with recently used foods shown first.
+- **Search:** find foods by name, with recently used foods shown first.
 - **Saved meals:** save combinations such as "egg and milk" and log them in one tap. You can also save a logged meal from the Today tab.
-- **Barcode scanning:** save a barcode with a food, then scan it later to pick the food instantly.
+- **Copy from yesterday:** copy a meal (for example, breakfast) from the previous day with one tap.
 - **Backup and restore:** export all data to a file or text, and import it later (merge or replace).
 - **Storage cleanup:** delete logged entries from before today to free up space.
 
 ## Using it
 
-1. **Foods tab:** add your foods with values per 100 g. Optionally add a serving size and a barcode.
-2. **Log food tab:** search or scan a food, choose the meal and date, enter the amount and tap *Add to day*.
-3. **Today tab:** see your totals, goal progress and each meal. Edit or delete entries here.
+1. **Foods tab:** add your foods with values per 100 g. Optionally add a serving size.
+2. **Log food tab:** search for a food, choose the meal and date, enter the amount and tap *Add to day*.
+3. **Today tab:** see your totals, goal progress and each meal. Edit or delete entries here, or tap *Copy* to repeat a meal from the day before.
 4. **Meals tab:** build or save meals you eat often, then log them in one tap.
 5. **Settings tab:** set goals, export or import data, and free up storage.
 
@@ -35,12 +35,6 @@ A simple, private daily nutrition tracker that runs in your browser. It is a sin
 - To move data between devices, versions or addresses, export from the old one and import into the new one. *Merge* adds to your existing data; *Replace all* overwrites it.
 - Updating `index.html` on the same address keeps your data.
 
-## Barcode scanning notes
-
-- Live scanning needs camera permission, a secure (HTTPS) address and an internet connection to load the scanner library ([html5-qrcode](https://github.com/mebjas/html5-qrcode), loaded from jsDelivr).
-- If the live camera is unavailable, use **Take a photo of the barcode**, or type the number.
-- Barcodes only match foods you have saved. This app does not look up products online.
-
 ## Limitations
 
 - Nutrition values are whatever you enter, so check them against the package.
@@ -49,4 +43,4 @@ A simple, private daily nutrition tracker that runs in your browser. It is a sin
 
 ## Tech
 
-Plain HTML, CSS and JavaScript in one file. The only external dependency is the barcode scanner library mentioned above.
+Plain HTML, CSS and JavaScript in one file. It has no external dependencies.
