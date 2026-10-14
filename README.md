@@ -27,14 +27,6 @@ A simple, private daily nutrition tracker that runs in your browser. It is a sin
 4. **Meals tab:** build or save meals you eat often, then log them in one tap.
 5. **Settings tab:** set goals, export or import data, and free up storage.
 
-## Deploy with GitHub Pages
-
-1. Create a **public** repository.
-2. Upload `index.html` (this file must have exactly that name).
-3. Go to **Settings → Pages**, set the source to **Deploy from a branch**, choose `main` and `/ (root)`, and save.
-4. After a minute or two your site is available at `https://YOUR-USERNAME.github.io/YOUR-REPO/`.
-5. On iPhone, open the link in Safari, tap **Share → Add to Home Screen**.
-
 ## Your data and privacy
 
 - All data is stored in your browser's local storage on your own device. Nothing is sent to a server.
