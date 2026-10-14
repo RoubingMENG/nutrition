@@ -2,7 +2,7 @@
 
 A simple, private daily nutrition tracker that runs in your browser. It is a single `index.html` file with no accounts, no server and no build step. It works well on an iPhone and can be added to the home screen like an app.
 
-**Live site:** `https://YOUR-USERNAME.github.io/YOUR-REPO/` *(replace with your own address)*
+**Live site:** `https://roubingmeng.github.io/nutrition/`
 
 ## Features
 
